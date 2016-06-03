@@ -1,6 +1,6 @@
 <?php
 
-namespace Istrix\MailSender;
+namespace Istrix\Mail;
 
 use Nette\Mail\IMailer;
 use Nette\Mail\Message;
