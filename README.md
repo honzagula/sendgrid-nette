@@ -19,10 +19,10 @@ services:
 ```
 
 ## Usage
-Inject IMailer and you are ready to send...
+Just inject IMailer and send message...
 
 ```php
-	/** @var IMailer @injet */
+	/** @var IMailer @inject */
 	public $iMailer;
 	
 	protected function sendMail() {
