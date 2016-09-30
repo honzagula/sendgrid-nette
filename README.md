@@ -15,7 +15,7 @@ parameters:
 		key: 'yourkey'
 
 services:
-	nette.mailer: Istrix\MailSender\SendgridMailer(%sendgrid.key%)
+	nette.mailer: Istrix\Mail\SendgridMailer(%sendgrid.key%, %tempDir%)
 ```
 
 ## Usage
@@ -23,11 +23,11 @@ Just inject IMailer and send message...
 
 ```php
 	/** @var IMailer @inject */
-	public $iMailer;
+	public $mailer;
 	
 	protected function sendMail() {
 		...
-		$this->iMailer->send($message);
+		$this->mailer->send($message);
 		...
 	}
 	
