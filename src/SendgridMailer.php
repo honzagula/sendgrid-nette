@@ -77,6 +77,14 @@ class SendgridMailer extends Object implements IMailer
             $email->addTo($recipient);
         }
 
+        foreach ($message->getHeader('Cc') as $recipient => $name) {
+            $email->addCc($recipient);
+        }
+
+        foreach ($message->getHeader('Bcc') as $recipient => $name) {
+            $email->addBcc($recipient);
+        }
+
         $sendGrid->send($email);
 
         $this->cleanUp();
