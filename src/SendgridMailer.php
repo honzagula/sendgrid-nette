@@ -21,6 +21,9 @@ class SendgridMailer extends Object implements IMailer {
     
     /** @var string */
     private $defaultSubject;
+    
+    /** @var string */
+    private $replyTo;
 
     /**
      * MailSender constructor
@@ -28,10 +31,11 @@ class SendgridMailer extends Object implements IMailer {
      * @param string $key
      * @param string $tempFolder
      */
-    public function __construct($key, $tempFolder, $defaultSubject = NULL) {
+    public function __construct($key, $tempFolder, $defaultSubject = NULL, $replyTo = NULL) {
         $this->key = $key;
         $this->tempFolder = $tempFolder;
         $this->defaultSubject = $defaultSubject ?: $_SERVER['HTTP_HOST'];
+        $this->replyTo = $replyTo;
     }
 
     /**
@@ -108,8 +112,10 @@ class SendgridMailer extends Object implements IMailer {
                 $personalization->addBcc(new Email($name, $recipient));
             }
         }
-
-        $mail->addPersonalization($personalization);
+        
+        if ($this->replyTo) {
+            $mail->setReplyTo($this->replyTo);
+        }
         
         $response = $sendGrid->client->mail()->send()->post($mail);
 //        \Tracy\Debugger::barDump($response, 'sendgrid response');
