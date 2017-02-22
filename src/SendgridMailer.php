@@ -8,9 +8,7 @@ use Nette\Object;
 use SendGrid;
 use SendGrid\Email;
 
-class SendgridMailer extends Object implements IMailer
-{
-    const ENDPOINT = "https://api.sendgrid.com/";
+class SendgridMailer extends Object implements IMailer {
 
     /** @var string */
     private $key;
@@ -20,6 +18,9 @@ class SendgridMailer extends Object implements IMailer
 
     /** @var array */
     private $tempFiles = [];
+    
+    /** @var string */
+    private $defaultSubject;
 
     /**
      * MailSender constructor
@@ -27,17 +28,16 @@ class SendgridMailer extends Object implements IMailer
      * @param string $key
      * @param string $tempFolder
      */
-    public function __construct($key, $tempFolder)
-    {
+    public function __construct($key, $tempFolder, $defaultSubject = NULL) {
         $this->key = $key;
         $this->tempFolder = $tempFolder;
+        $this->defaultSubject = $defaultSubject ?: $_SERVER['HTTP_HOST'];
     }
 
     /**
      * @param string $key
      */
-    public function setKey($key)
-    {
+    public function setKey($key) {
         $this->key = $key;
     }
 
@@ -48,21 +48,23 @@ class SendgridMailer extends Object implements IMailer
      *
      * @throws SendGrid\Exception
      */
-    public function send(Message $message)
-    {
+    public function send(Message $message) {
         $sendGrid = new SendGrid($this->key);
-        $email = new Email();
 
-        $from = $message->getFrom();
-        reset($from);
-        $key = key($from);
-
-        $email->setFrom($key)
-            ->setFromName($from[$key])
-            ->setSubject($message->getSubject())
-            ->setText($message->getBody())
-            ->setHtml($message->getHtmlBody());
-
+        //prepare From - sender data
+        $fromData = $message->getFrom();
+        reset($fromData);
+        $fromKey = key($fromData);
+        $from = new Email($fromData[$fromKey], $fromKey);
+        
+        //prepare contents - alternative (text/plain) content does not seem to be supported
+        $content = new SendGrid\Content("text/html", $message->getHtmlBody());
+        
+        $mail = new SendGrid\Mail();  
+        $mail->setFrom($from);
+        $mail->setSubject($message->getSubject() ?: $this->defaultSubject);
+        $mail->addContent($content);
+            
         foreach ($message->getAttachments() as $attachement) {
             $header = $attachement->getHeader('Content-Disposition');
             preg_match('/filename\=\"(.*)\"/', $header, $result);
@@ -70,28 +72,36 @@ class SendgridMailer extends Object implements IMailer
 
             $filePath = $this->saveTempAttachement($attachement->getBody());
 
-            $email->addAttachment($filePath, $originalFileName);
+            $mail->addAttachment($filePath, $originalFileName);
         }
 
+        //add more recipients, CCs and BCCs
+        $personalization = new SendGrid\Personalization;
         foreach ($message->getHeader('To') as $recipient => $name) {
-            $email->addTo($recipient);
+            $personalization->addTo(new Email($name, $recipient));
+        }
+        
+        if ($message->getHeader('Cc') !== NULL) {
+            foreach ($message->getHeader('Cc') as $recipient => $name) {
+                $personalization->addCc(new Email($name, $recipient));
+            }
+        }
+        
+        if ($message->getHeader('Bcc') !== NULL) {
+            foreach ($message->getHeader('Bcc') as $recipient => $name) {
+                $personalization->addBcc(new Email($name, $recipient));
+            }
         }
 
-        foreach ($message->getHeader('Cc') as $recipient => $name) {
-            $email->addCc($recipient);
-        }
-
-        foreach ($message->getHeader('Bcc') as $recipient => $name) {
-            $email->addBcc($recipient);
-        }
-
-        $sendGrid->send($email);
+        $mail->addPersonalization($personalization);
+        
+        $response = $sendGrid->client->mail()->send()->post($mail);
+//        \Tracy\Debugger::barDump($response, 'sendgrid response');
 
         $this->cleanUp();
     }
 
-    private function saveTempAttachement($body)
-    {
+    private function saveTempAttachement($body) {
         $filePath = $this->tempFolder . '/' . md5($body);
         file_put_contents($filePath, $body);
         array_push($this->tempFiles, $filePath);
@@ -99,8 +109,7 @@ class SendgridMailer extends Object implements IMailer
         return $filePath;
     }
 
-    private function cleanUp()
-    {
+    private function cleanUp() {
         foreach ($this->tempFiles as $file) {
             unlink($file);
         }
