@@ -48,7 +48,7 @@ class SendgridMailer extends Object implements IMailer {
      *
      * @throws SendGrid\Exception
      */
-    public function send(Message $message) {
+    public function send(Message $message, array $embedFiles = []) {
         $sendGrid = new SendGrid($this->key);
 
         //prepare From - sender data
@@ -77,6 +77,20 @@ class SendgridMailer extends Object implements IMailer {
             $mail->addAttachment($att);
         }
 
+        foreach ($embedFiles as $attachement) {
+            if (!$attachement instanceof SendGridInlineFile) {
+                throw new \InvalidArgumentException('Parameter $embedFiles must be an array containing SendGridInlineFile objects');
+            }
+            
+            $att = new SendGrid\Attachment();
+            $att->setType($attachement->contentType);
+            $att->setFilename($attachement->filename);
+            $att->setContent(base64_encode($attachement->content));
+            $att->setDisposition('inline');
+            $att->setContentID($attachement->contentId);
+            $mail->addAttachment($att);
+        }
+        
         //add more recipients, CCs and BCCs
         $personalization = new SendGrid\Personalization;
         foreach ($message->getHeader('To') as $recipient => $name) {
@@ -96,7 +110,6 @@ class SendgridMailer extends Object implements IMailer {
         }
 
         $mail->addPersonalization($personalization);
-        
         
         $response = $sendGrid->client->mail()->send()->post($mail);
 //        \Tracy\Debugger::barDump($response, 'sendgrid response');

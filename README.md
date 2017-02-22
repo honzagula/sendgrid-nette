@@ -32,3 +32,26 @@ Just inject IMailer and send message...
 	}
 	
 ```
+
+If you wish to use inline/embedded images:
+
+```php
+	/** @var IMailer @inject */
+	public $mailer;
+	
+	protected function sendMail() {
+		...
+                $embeddedImages = [
+                    new SendGridInlineFile('logo.png', file_get_contents('logo.png'), 'image/png', 'anystringusedascid')
+                ];
+		$this->mailer->send($message, $embeddedImages);
+		...
+	}
+	
+```
+
+To include the embedded image into e-mail HTML template, use:
+
+```html
+       <img src="cid:anystringusedascid">
+```
