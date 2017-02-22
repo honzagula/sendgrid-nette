@@ -62,15 +62,19 @@ class SendgridMailer extends Object implements IMailer {
         $mail->setSubject($message->getSubject() ?: $this->defaultSubject);
         $mail->addContent(new SendGrid\Content("text/plain", $message->getBody()));
         $mail->addContent(new SendGrid\Content("text/html", $message->getHtmlBody()));
-            
+        
         foreach ($message->getAttachments() as $attachement) {
             $header = $attachement->getHeader('Content-Disposition');
             preg_match('/filename\=\"(.*)\"/', $header, $result);
             $originalFileName = $result[1];
 
-            $filePath = $this->saveTempAttachement($attachement->getBody());
-
-            $mail->addAttachment($filePath, $originalFileName);
+            $att = new SendGrid\Attachment();
+            $att->setType($attachement->getHeader('Content-Type'));
+            $att->setFilename($originalFileName);
+            $att->setContent(base64_encode($attachement->getBody()));
+            $att->setDisposition('attachment');
+            $att->setContentID(\Nette\Utils\Random::generate(10));
+            $mail->addAttachment($att);
         }
 
         //add more recipients, CCs and BCCs
@@ -95,8 +99,8 @@ class SendgridMailer extends Object implements IMailer {
         
         
         $response = $sendGrid->client->mail()->send()->post($mail);
-        \Tracy\Debugger::barDump($response, 'sendgrid response');
-
+//        \Tracy\Debugger::barDump($response, 'sendgrid response');
+            
         $this->cleanUp();
     }
 
