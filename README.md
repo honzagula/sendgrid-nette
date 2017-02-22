@@ -33,6 +33,8 @@ Just inject IMailer and send message...
 	
 ```
 
+### Embedded images
+
 If you wish to use inline/embedded images:
 
 ```php
