@@ -43,9 +43,9 @@ If you wish to use inline/embedded images:
 	
 	protected function sendMail() {
 		...
-                $embeddedImages = [
-                    new SendGridInlineFile('logo.png', file_get_contents('logo.png'), 'image/png', 'anystringusedascid')
-                ];
+		$embeddedImages = [
+		    new SendGridInlineFile('logo.png', file_get_contents('logo.png'), 'image/png', 'anystringusedascid')
+		];
 		$this->mailer->send($message, $embeddedImages);
 		...
 	}
@@ -55,5 +55,5 @@ If you wish to use inline/embedded images:
 To include the embedded image into e-mail HTML template, use:
 
 ```html
-       <img src="cid:anystringusedascid">
+        <img src="cid:anystringusedascid">
 ```
