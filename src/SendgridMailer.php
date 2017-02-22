@@ -57,13 +57,11 @@ class SendgridMailer extends Object implements IMailer {
         $fromKey = key($fromData);
         $from = new Email($fromData[$fromKey], $fromKey);
         
-        //prepare contents - alternative (text/plain) content does not seem to be supported
-        $content = new SendGrid\Content("text/html", $message->getHtmlBody());
-        
         $mail = new SendGrid\Mail();  
         $mail->setFrom($from);
         $mail->setSubject($message->getSubject() ?: $this->defaultSubject);
-        $mail->addContent($content);
+        $mail->addContent(new SendGrid\Content("text/plain", $message->getBody()));
+        $mail->addContent(new SendGrid\Content("text/html", $message->getHtmlBody()));
             
         foreach ($message->getAttachments() as $attachement) {
             $header = $attachement->getHeader('Content-Disposition');
@@ -95,8 +93,9 @@ class SendgridMailer extends Object implements IMailer {
 
         $mail->addPersonalization($personalization);
         
+        
         $response = $sendGrid->client->mail()->send()->post($mail);
-//        \Tracy\Debugger::barDump($response, 'sendgrid response');
+        \Tracy\Debugger::barDump($response, 'sendgrid response');
 
         $this->cleanUp();
     }
