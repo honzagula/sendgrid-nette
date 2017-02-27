@@ -15,7 +15,7 @@ parameters:
 		key: 'yourkey'
 
 services:
-	nette.mailer: Istrix\Mail\SendgridMailer(%sendgrid.key%, %tempDir%, 'default subject', 'reply@to.address')
+	nette.mailer: Istrix\Mail\SendgridMailer(%sendgrid.key%, 'default subject', 'reply@to.address')
 ```
 
 ## Usage

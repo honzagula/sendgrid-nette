@@ -14,14 +14,8 @@ class SendgridMailer extends Object implements IMailer {
     private $key;
 
     /** @var string */
-    private $tempFolder;
-
-    /** @var array */
-    private $tempFiles = [];
-    
-    /** @var string */
     private $defaultSubject;
-    
+
     /** @var string */
     private $replyTo;
 
@@ -31,9 +25,9 @@ class SendgridMailer extends Object implements IMailer {
      * @param string $key
      * @param string $tempFolder
      */
-    public function __construct($key, $tempFolder, $defaultSubject = NULL, $replyTo = NULL) {
+    public function __construct($key, $defaultSubject = NULL, $replyTo = NULL)
+    {
         $this->key = $key;
-        $this->tempFolder = $tempFolder;
         $this->defaultSubject = $defaultSubject ?: $_SERVER['HTTP_HOST'];
         $this->replyTo = $replyTo;
     }
@@ -41,7 +35,8 @@ class SendgridMailer extends Object implements IMailer {
     /**
      * @param string $key
      */
-    public function setKey($key) {
+    public function setKey($key) 
+    {
         $this->key = $key;
     }
 
@@ -52,7 +47,8 @@ class SendgridMailer extends Object implements IMailer {
      *
      * @throws SendGrid\Exception
      */
-    public function send(Message $message, array $embedFiles = []) {
+    public function send(Message $message, array $embedFiles = []) 
+    {
         $sendGrid = new SendGrid($this->key);
 
         //prepare From - sender data
@@ -60,14 +56,15 @@ class SendgridMailer extends Object implements IMailer {
         reset($fromData);
         $fromKey = key($fromData);
         $from = new Email($fromData[$fromKey], $fromKey);
-        
-        $mail = new SendGrid\Mail();  
+
+        $mail = new SendGrid\Mail();
         $mail->setFrom($from);
         $mail->setSubject($message->getSubject() ?: $this->defaultSubject);
         $mail->addContent(new SendGrid\Content("text/plain", $message->getBody()));
         $mail->addContent(new SendGrid\Content("text/html", $message->getHtmlBody()));
-        
-        foreach ($message->getAttachments() as $attachement) {
+
+        foreach ($message->getAttachments() as $attachement) 
+        {
             $header = $attachement->getHeader('Content-Disposition');
             preg_match('/filename\=\"(.*)\"/', $header, $result);
             $originalFileName = $result[1];
@@ -81,11 +78,13 @@ class SendgridMailer extends Object implements IMailer {
             $mail->addAttachment($att);
         }
 
-        foreach ($embedFiles as $attachement) {
-            if (!$attachement instanceof SendGridInlineFile) {
+        foreach ($embedFiles as $attachement) 
+        {
+            if (!$attachement instanceof SendGridInlineFile) 
+            {
                 throw new \InvalidArgumentException('Parameter $embedFiles must be an array containing SendGridInlineFile objects');
             }
-            
+
             $att = new SendGrid\Attachment();
             $att->setType($attachement->contentType);
             $att->setFilename($attachement->filename);
@@ -94,47 +93,38 @@ class SendgridMailer extends Object implements IMailer {
             $att->setContentID($attachement->contentId);
             $mail->addAttachment($att);
         }
-        
+
         //add more recipients, CCs and BCCs
         $personalization = new SendGrid\Personalization;
-        foreach ($message->getHeader('To') as $recipient => $name) {
+        foreach ($message->getHeader('To') as $recipient => $name)
+        {
             $personalization->addTo(new Email($name, $recipient));
         }
-        
-        if ($message->getHeader('Cc') !== NULL) {
-            foreach ($message->getHeader('Cc') as $recipient => $name) {
+
+        if ($message->getHeader('Cc') !== NULL) 
+        {
+            foreach ($message->getHeader('Cc') as $recipient => $name) 
+            {
                 $personalization->addCc(new Email($name, $recipient));
             }
         }
-        
-        if ($message->getHeader('Bcc') !== NULL) {
-            foreach ($message->getHeader('Bcc') as $recipient => $name) {
+
+        if ($message->getHeader('Bcc') !== NULL) 
+        {
+            foreach ($message->getHeader('Bcc') as $recipient => $name) 
+            {
                 $personalization->addBcc(new Email($name, $recipient));
             }
         }
-        
-        if ($this->replyTo) {
+
+        if ($this->replyTo)
+        {
             $mail->setReplyTo($this->replyTo);
         }
-        
-        $response = $sendGrid->client->mail()->send()->post($mail);
-//        \Tracy\Debugger::barDump($response, 'sendgrid response');
-            
+
+        $sendGrid->client->mail()->send()->post($mail);
+
         $this->cleanUp();
-    }
-
-    private function saveTempAttachement($body) {
-        $filePath = $this->tempFolder . '/' . md5($body);
-        file_put_contents($filePath, $body);
-        array_push($this->tempFiles, $filePath);
-
-        return $filePath;
-    }
-
-    private function cleanUp() {
-        foreach ($this->tempFiles as $file) {
-            unlink($file);
-        }
     }
 
 }
