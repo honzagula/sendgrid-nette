@@ -8,18 +8,16 @@ use Nette\Object;
 use SendGrid;
 use SendGrid\Email;
 
-class SendgridMailer extends Object implements IMailer
-{
-    const ENDPOINT = "https://api.sendgrid.com/";
+class SendgridMailer extends Object implements IMailer {
 
     /** @var string */
     private $key;
 
     /** @var string */
-    private $tempFolder;
+    private $defaultSubject;
 
-    /** @var array */
-    private $tempFiles = [];
+    /** @var string */
+    private $replyTo;
 
     /**
      * MailSender constructor
@@ -27,16 +25,17 @@ class SendgridMailer extends Object implements IMailer
      * @param string $key
      * @param string $tempFolder
      */
-    public function __construct($key, $tempFolder)
+    public function __construct($key, $defaultSubject = NULL, $replyTo = NULL)
     {
         $this->key = $key;
-        $this->tempFolder = $tempFolder;
+        $this->defaultSubject = $defaultSubject ?: $_SERVER['HTTP_HOST'];
+        $this->replyTo = $replyTo;
     }
 
     /**
      * @param string $key
      */
-    public function setKey($key)
+    public function setKey($key) 
     {
         $this->key = $key;
     }
@@ -48,62 +47,84 @@ class SendgridMailer extends Object implements IMailer
      *
      * @throws SendGrid\Exception
      */
-    public function send(Message $message)
+    public function send(Message $message, array $embedFiles = []) 
     {
         $sendGrid = new SendGrid($this->key);
-        $email = new Email();
 
-        $from = $message->getFrom();
-        reset($from);
-        $key = key($from);
+        //prepare From - sender data
+        $fromData = $message->getFrom();
+        reset($fromData);
+        $fromKey = key($fromData);
+        $from = new Email($fromData[$fromKey], $fromKey);
 
-        $email->setFrom($key)
-            ->setFromName($from[$key])
-            ->setSubject($message->getSubject())
-            ->setText($message->getBody())
-            ->setHtml($message->getHtmlBody());
+        $mail = new SendGrid\Mail();
+        $mail->setFrom($from);
+        $mail->setSubject($message->getSubject() ?: $this->defaultSubject);
+        $mail->addContent(new SendGrid\Content("text/plain", $message->getBody()));
+        $mail->addContent(new SendGrid\Content("text/html", $message->getHtmlBody()));
 
-        foreach ($message->getAttachments() as $attachement) {
+        foreach ($message->getAttachments() as $attachement) 
+        {
             $header = $attachement->getHeader('Content-Disposition');
             preg_match('/filename\=\"(.*)\"/', $header, $result);
             $originalFileName = $result[1];
 
-            $filePath = $this->saveTempAttachement($attachement->getBody());
-
-            $email->addAttachment($filePath, $originalFileName);
+            $att = new SendGrid\Attachment();
+            $att->setType($attachement->getHeader('Content-Type'));
+            $att->setFilename($originalFileName);
+            $att->setContent(base64_encode($attachement->getBody()));
+            $att->setDisposition('attachment');
+            $att->setContentID(\Nette\Utils\Random::generate(10));
+            $mail->addAttachment($att);
         }
 
-        foreach ($message->getHeader('To') as $recipient => $name) {
-            $email->addTo($recipient);
+        foreach ($embedFiles as $attachement) 
+        {
+            if (!$attachement instanceof SendGridInlineFile) 
+            {
+                throw new \InvalidArgumentException('Parameter $embedFiles must be an array containing SendGridInlineFile objects');
+            }
+
+            $att = new SendGrid\Attachment();
+            $att->setType($attachement->contentType);
+            $att->setFilename($attachement->filename);
+            $att->setContent(base64_encode($attachement->content));
+            $att->setDisposition('inline');
+            $att->setContentID($attachement->contentId);
+            $mail->addAttachment($att);
         }
 
-        foreach ($message->getHeader('Cc') as $recipient => $name) {
-            $email->addCc($recipient);
+        //add more recipients, CCs and BCCs
+        $personalization = new SendGrid\Personalization;
+        foreach ($message->getHeader('To') as $recipient => $name)
+        {
+            $personalization->addTo(new Email($name, $recipient));
         }
 
-        foreach ($message->getHeader('Bcc') as $recipient => $name) {
-            $email->addBcc($recipient);
+        if ($message->getHeader('Cc') !== NULL) 
+        {
+            foreach ($message->getHeader('Cc') as $recipient => $name) 
+            {
+                $personalization->addCc(new Email($name, $recipient));
+            }
         }
 
-        $sendGrid->send($email);
+        if ($message->getHeader('Bcc') !== NULL) 
+        {
+            foreach ($message->getHeader('Bcc') as $recipient => $name) 
+            {
+                $personalization->addBcc(new Email($name, $recipient));
+            }
+        }
+
+        if ($this->replyTo)
+        {
+            $mail->setReplyTo($this->replyTo);
+        }
+
+        $sendGrid->client->mail()->send()->post($mail);
 
         $this->cleanUp();
-    }
-
-    private function saveTempAttachement($body)
-    {
-        $filePath = $this->tempFolder . '/' . md5($body);
-        file_put_contents($filePath, $body);
-        array_push($this->tempFiles, $filePath);
-
-        return $filePath;
-    }
-
-    private function cleanUp()
-    {
-        foreach ($this->tempFiles as $file) {
-            unlink($file);
-        }
     }
 
 }
